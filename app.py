@@ -206,7 +206,7 @@ class DocumentProcessor:
         """
         try:
             response = self.client.chat.completions.create(
-                messages=[{"role": "user", "content": prompt }],
+                messages=[{"role": "user", "content": prompt + 'Dont give the raw data and headings and give only point to point text'}],
                 model="gemma2-9b-it"
             )
             return response.choices[0].message.content

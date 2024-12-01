@@ -244,7 +244,7 @@ def main():
     st.write("Upload your documents to generate an exam paper with customized questions.")
 
     # API Key Management
-    api_key = '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'
+    api_key = os.getenv("GROQ_API_KEY", "")
 
     # File uploader
     uploaded_files = st.file_uploader(

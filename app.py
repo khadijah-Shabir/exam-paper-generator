@@ -163,7 +163,7 @@ def main():
                 # Generate questions for each selected type
                 for q_type, settings in question_settings.items():
                     question_type_name = {"mcq": "Multiple Choice Questions", "short": "Short Questions", "long": "Long Questions"}
-                    st.write(f"### Generating {question_type_name[q_type]}...")
+                    #st.write(f"### Generating {question_type_name[q_type]}...")
                     questions = processor.generate_questions(
                         content=combined_text,
                         question_type=question_type_name[q_type].lower(),

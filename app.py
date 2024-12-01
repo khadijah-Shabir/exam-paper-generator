@@ -14,139 +14,92 @@ from reportlab.lib import colors
 from reportlab.lib.units import inch
 from reportlab.pdfgen import canvas
 
-# Streamlit configuration (this should be the first Streamlit command in the script)
+# Streamlit configuration
 st.set_page_config(
-    page_title="Exam Paper Generator",  # Title of the app
-    page_icon="📝",                      # App icon
-    layout="wide",                       # Page layout, "wide" makes it more spacious
-    initial_sidebar_state="collapsed"    # Sidebar state (collapsed or expanded)
+    page_title="Exam Paper Generator",
+    page_icon="📝",
+    layout="wide"
 )
 
-st.markdown(
-    """
-    <style>
-        body {
-            background-color: #f0f4f8;
-            font-family: 'Arial', sans-serif;
-        }
-
-        .stTitle {
-            color: #2c3e50;
-            font-size: 40px;
-            font-weight: bold;
-            text-align: center;
-            padding: 20px 0;
-        }
-
-        .stHeader {
-            background-color: #2980b9;
-            color: white;
-            padding: 15px;
-            font-size: 22px;
-            font-weight: bold;
-            text-align: center;
-            border-radius: 8px;
-        }
-
-        .stButton>button {
-            background-color: #2980b9;
-            color: white;
-            font-size: 16px;
-            font-weight: bold;
-            border-radius: 5px;
-            padding: 12px 20px;
-            margin-top: 20px;
-            cursor: pointer;
-            transition: background-color 0.3s ease;
-        }
-
-        .stButton>button:hover {
-            background-color: #1abc9c;
-        }
-
-        .stTextInput>label {
-            font-weight: bold;
-            color: #2980b9;
-        }
-
-        .stFileUploader {
-            background-color: #e7e7e7;
-            border: 2px solid #2980b9;
-            padding: 15px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-            text-align: center;
-        }
-
-        .stText {
-            font-size: 18px;
-            line-height: 1.6;
-            color: #34495e;
-            text-align: center;
-        }
-
-        .stDownloadButton>button {
-            background-color: #27ae60;
-            color: white;
-            font-weight: bold;
-            padding: 10px 20px;
-            border-radius: 5px;
-        }
-
-        .stSpinner>div {
-            color: #2980b9;
-        }
-
-        .question-section {
-            margin-top: 30px;
-            padding: 20px;
-            background-color: #f9f9f9;
-            border-radius: 8px;
-            box-shadow: 0px 2px 10px rgba(0, 0, 0, 0.1);
-        }
-
-        .question-section h3 {
-            font-size: 24px;
-            color: #2980b9;
-            margin-bottom: 20px;
-        }
-
-        .question-section p {
-            font-size: 18px;
-            line-height: 1.5;
-            color: #34495e;
-        }
-
-        .question-settings {
-            margin-top: 20px;
-            margin-bottom: 20px;
-        }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-
-# PDF generation function
 def generate_styled_pdf(title: str, content: str) -> BytesIO:
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter)
 
+    # Create custom styles
     styles = getSampleStyleSheet()
+    
+    # Title Style
     title_style = ParagraphStyle(
         'TitleStyle',
         parent=styles['Heading1'],
-        fontSize=18,
+        fontSize=22,
         textColor=colors.HexColor("#2C3E50"),
-        alignment=1
+        alignment=1,  # Center alignment
+        spaceAfter=12,
+        fontName='Helvetica-Bold'
     )
-    normal_style = styles['BodyText']
+    
+    # Question Header Style
+    question_header_style = ParagraphStyle(
+        'QuestionHeaderStyle',
+        parent=styles['Heading2'],
+        fontSize=16,
+        textColor=colors.HexColor("#34495E"),
+        spaceBefore=12,
+        spaceAfter=6,
+        fontName='Helvetica-Bold'
+    )
+    
+    # Normal Question Style
+    question_style = ParagraphStyle(
+        'QuestionStyle',
+        parent=styles['BodyText'],
+        fontSize=12,
+        textColor=colors.black,
+        spaceBefore=6,
+        spaceAfter=6,
+        fontName='Helvetica'
+    )
+    
+    # Option Style (for MCQs)
+    option_style = ParagraphStyle(
+        'OptionStyle',
+        parent=styles['BodyText'],
+        fontSize=11,
+        textColor=colors.HexColor("#2C3E50"),
+        leftIndent=20,
+        spaceBefore=3,
+        spaceAfter=3,
+        fontName='Helvetica'
+    )
+    
+    # Prepare document elements
+    elements = []
 
-    elements = [
-        Paragraph(title, title_style),
-        Spacer(1, 0.3 * inch),
-        Paragraph(content.replace("\n", "<br />"), normal_style)
-    ]
+    # Add title
+    elements.append(Paragraph(title, title_style))
+    elements.append(Spacer(1, 0.25 * inch))
 
+    # Process content with improved formatting
+    lines = content.split('\n')
+    for line in lines:
+        line = line.strip()
+        
+        # Identify and style different types of content
+        if line.startswith('###'):  # Section headers
+            header = line.replace('###', '').strip()
+            elements.append(Paragraph(header, question_header_style))
+        elif line.startswith('Q'):  # Questions
+            elements.append(Paragraph(line, question_style))
+        elif line.startswith(('A)', 'B)', 'C)', 'D)')):  # MCQ Options
+            elements.append(Paragraph(line, option_style))
+        elif line:  # Other content
+            elements.append(Paragraph(line, styles['BodyText']))
+        
+        # Add small spacing between elements
+        elements.append(Spacer(1, 0.1 * inch))
+
+    # Build PDF
     doc.build(elements)
     buffer.seek(0)
     return buffer
@@ -181,45 +134,117 @@ class DocumentProcessor:
             return f"Error processing file: {str(e)}"
 
     def generate_questions(self, content: str, question_type: str, num_questions: int, difficulty: str, specific_topic: str = None) -> str:
-        """Generate questions based on content."""
+        """Generate questions based on content with type-specific prompts."""
         if not content or content.strip() == "":
             return "No content provided for question generation."
 
-        prompt = f"""
-        Generate {num_questions} {question_type} questions {'on the topic of ' + specific_topic if specific_topic else ''} 
-        based on the following content.
-        Difficulty level: {difficulty}.
-        
-        Content:
-        {content[:5000]}  # Limit content to prevent overwhelming the API
+        # Separate prompts for each question type
+        if question_type == "multiple choice questions":
+            prompt = f"""
+            MULTIPLE CHOICE QUESTIONS (MCQs) GENERATION INSTRUCTIONS:
 
-        Format:
-        - For MCQs:
-          Q[number]. [Question]
-          A) Option 1 \n
-          B) Option 2 \n
-          C) Option 3 \n
-          D) Option 4 \n
-        - For short questions: Q[number]. [Question]
-        - For long questions: Q[number]. [Detailed Question]
-        proper line spacind after each question and option and give everthind in proper format and dont give ram data or headings
-        """
+            Context:
+            - Source Content: {content[:4000]}
+            {'- Focus Topic: ' + specific_topic if specific_topic else ''}
+            - Difficulty Level: {difficulty}
+
+            STRICT MCQ FORMATTING REQUIREMENTS:
+            - Generate {num_questions} UNIQUE Multiple Choice Questions
+            - Each question MUST have EXACTLY 4 options
+            
+            MCQ FORMAT:
+            Q[number]. [Precise, knowledge-testing question]
+            
+            Options (EXACTLY 4, precisely formatted and new line after each option):
+            A) [Option 1 then start a new line]
+            B) [Option 2 then start a new line]
+            C) [Option 3 then start a new line]
+            D) [Option 4 then start a new line]
+            
+       
+
+            CRITICAL GUIDELINES:
+            - Derive questions ONLY from provided content
+            - Ensure NO overlap between questions
+            - Options must be academically credible
+            - CORRECT answer must be unambiguously right
+            - Maintain academic language
+            - Complexity matches specified difficulty level
+            """
+
+        elif question_type == "short questions":
+            prompt = f"""
+            SHORT ANSWER QUESTIONS GENERATION INSTRUCTIONS:
+
+            Context:
+            - Source Content: {content[:4000]}
+            {'- Focus Topic: ' + specific_topic if specific_topic else ''}
+            - Difficulty Level: {difficulty}
+
+            STRICT SHORT QUESTION FORMATTING REQUIREMENTS:
+            - Generate {num_questions} UNIQUE Short Answer Questions
+            - Each question requires a focused, concise response (2-3 sentences)
+            
+            SHORT QUESTION FORMAT:
+            Q[number]. [Precise, concept-testing question requiring brief, specific answer]
+
+            CRITICAL GUIDELINES:
+            - Questions must be answerable using ONLY the provided content
+            - Focus on key concepts, definitions, explanations
+            - Avoid yes/no questions
+            - Ensure questions test understanding, not mere recall
+            - Each question should require analysis or explanation
+            - Maintain academic rigor
+            - Complexity matches specified difficulty level
+            """
+
+        elif question_type == "long questions":
+            prompt = f"""
+            LONG ANSWER QUESTIONS GENERATION INSTRUCTIONS:
+
+            Context:
+            - Source Content: {content[:4000]}
+            {'- Focus Topic: ' + specific_topic if specific_topic else ''}
+            - Difficulty Level: {difficulty}
+
+            STRICT LONG QUESTION FORMATTING REQUIREMENTS:
+            - Generate {num_questions} UNIQUE Comprehensive Questions
+            - Each question requires an in-depth, multi-part response
+            
+            LONG QUESTION FORMAT:
+            Q[number]. [Complex, analytical question requiring comprehensive explanation]
+
+
+            CRITICAL GUIDELINES:
+            - Questions must demand critical thinking
+            - Require synthesis of information from content
+            - Encourage analytical and evaluative responses
+            - Include potential for original insight
+            - Ensure questions are NOT simply information regurgitation
+            - Complexity significantly higher than short questions
+            - Match specified difficulty level precisely
+            """
+
         try:
             response = self.client.chat.completions.create(
-                messages=[{"role": "user", "content": prompt + 'Dont give the raw data and headings and give only point to point text'}],
-                model="gemma2-9b-it"
+                messages=[
+                    {"role": "system", "content": "You are a precise, academic exam question generator. Dont give the raw heading and data and give point to point data only in a good format and alignment"},
+                    {"role": "user", "content": prompt}
+                ],
+                model="gemma2-9b-it",
+                temperature=0.7  # Slight randomness to prevent repetition
             )
             return response.choices[0].message.content
         except Exception as e:
             return f"Error generating questions: {str(e)}"
 
-# Main application function
+# Main application remains the same as in previous version
 def main():
     st.title("📝 Exam Paper Generator")
     st.write("Upload your documents to generate an exam paper with customized questions.")
 
     # API Key Management
-    api_key =os.getenv("GROQ_API_KEY", "")
+    api_key = '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'
 
     # File uploader
     uploaded_files = st.file_uploader(
@@ -312,5 +337,5 @@ def main():
         except Exception as e:
             st.error(f"An error occurred: {str(e)}")
 
-# Main execution starts here
-main()
+if __name__ == "__main__":
+    main()
